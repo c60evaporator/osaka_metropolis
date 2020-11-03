@@ -6,7 +6,7 @@ from custom_pair_plot import CustomPairPlot
 KEY_VALUE = 'ward_before'#キー列
 OBJECTIVE_VARIALBLE = 'approval_rate'#目的変数
 EXPLANATORY_VALIABLES = ['1_over60','2_between_30to60','3_male_ratio','4_required_time','5_household_member','6_income']#説明変数
-USE_EXPLANATORY = ['2_between_30to60','3_male_ratio','4_required_time','5_household_member']#使用する説明変数
+USE_EXPLANATORY = ['2_between_30to60','3_male_ratio','5_household_member','latitude']#使用する説明変数
 #データ読込
 df = pd.read_csv(f'./osaka_metropolis_english.csv')
 df
