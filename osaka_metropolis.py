@@ -1,6 +1,7 @@
 #%%読込
 import pandas as pd
 from custom_pair_plot import CustomPairPlot
+import seaborn as sns
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -29,7 +30,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
-import seaborn as sns
 
 #目的変数と説明変数を取得（pandasではなくndarrayに変換）
 y = df[[OBJECTIVE_VARIALBLE]].values
@@ -140,4 +140,6 @@ with open(path, mode='w') as f:
 #散布図表示
 sns.regplot(x="pred_value", y="real_value", data=df_result, ci=0)
 
+# %%前回と今回の比較散布図
+sns.regplot(x="approval_former", y="approval_rate", data=df, ci=0)
 # %%
