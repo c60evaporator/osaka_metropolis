@@ -74,6 +74,11 @@ cv.fit(X,
 print('最適パラメータ ' + str(cv.best_params_))
 print('変数重要度' + str(cv.best_estimator_.feature_importances_))
 
+#特徴量重要度の描画
+features = list(reversed(USE_EXPLANATORY))
+importances = list(reversed(cv.best_estimator_.feature_importances_.tolist()))
+plt.barh(features,importances)
+
 #%%3. 性能評価(Leave-One-Out)
 #パラメータにグリッドサーチでの最適パラメータを使用
 params = cv.best_params_
