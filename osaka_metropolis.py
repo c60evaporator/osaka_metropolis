@@ -5,30 +5,31 @@ from custom_pair_plot import CustomPairPlot
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
 OBJECTIVE_VARIALBLE = 'approval_rate'#目的変数
-EXPLANATORY_VALIABLES = ['1_over60','2_between_30to60','3_male_ratio','4_required_time','5_household_member','6_income']
-USE_EXPLANATORY = ['2_between_30to60','3_male_ratio','4_required_time','5_household_member']
-
+EXPLANATORY_VALIABLES = ['1_over60','2_between_30to60','3_male_ratio','4_required_time','5_household_member','6_income']#説明変数
+USE_EXPLANATORY = ['2_between_30to60','3_male_ratio','4_required_time','5_household_member']#使用する説明変数
+#データ読込
 df = pd.read_csv(f'./osaka_metropolis_english.csv')
 df
-# %%pair_analyzer
+# %%1. pair_analyzerでデータの可視化
 use_cols = [OBJECTIVE_VARIALBLE] + EXPLANATORY_VALIABLES
 gp = CustomPairPlot()
 #gp.pairanalyzer(df[use_cols])
-# %%pair_analyzer(特徴量削減)
+# %%1. pair_analyzerでデータの可視化(特徴量削減後)
 use_cols = [OBJECTIVE_VARIALBLE] + USE_EXPLANATORY
 #gp.pairanalyzer(df[use_cols])
-# %%XGBoost用設定読込
+
+# %%2＆3. XGBoost用設定読込
 import xgboost as xgb
 from sklearn import metrics as met
 import sklearn as skl
 from sklearn.model_selection import LeaveOneOut
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score, confusion_matrix
 import numpy as np
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
+import seaborn as sns
 
 #目的変数と説明変数を取得（pandasではなくndarrayに変換）
 y = df[[OBJECTIVE_VARIALBLE]].values
@@ -38,7 +39,7 @@ num_round=10000#最大学習回数
 early_stopping_rounds=50#評価指標がこの回数連続で改善しなくなった時点で学習をストップ
 seed = 42#乱数シード
 
-#%%グリッドサーチによるパラメータ最適化
+#%%2. グリッドサーチによるパラメータ最適化
 
 #グリッドサーチ用パラメータ(https://qiita.com/R1ck29/items/50ba7fa5afa49e334a8f)
 cv_params = {'eval_metric':['rmse'],#データの評価指標
@@ -73,7 +74,7 @@ cv.fit(X,
 print('最適パラメータ ' + str(cv.best_params_))
 print('変数重要度' + str(cv.best_estimator_.feature_importances_))
 
-#%%性能評価(Leave-One-Out)
+#%%3. 性能評価(Leave-One-Out)
 #パラメータにグリッドサーチでの最適パラメータを使用
 params = cv.best_params_
 #結果保持用のDataFrame
@@ -130,5 +131,8 @@ with open(path, mode='w') as f:
         f.write('\nRMSE平均' + str(df_result['eval_rmse_min'].mean()))
         f.write('\n相関係数' + str(df_result[['pred_value','real_value']].corr().iloc[1,0]))
         f.write('\n予測誤差の最大値' + str(max((df_result['pred_value'] - df_result['real_value']).abs())))
+
+#散布図表示
+sns.regplot(x="pred_value", y="real_value", data=df_result, ci=0)
 
 # %%
