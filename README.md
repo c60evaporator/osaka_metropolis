@@ -11,3 +11,6 @@ osaka_metropolis_english.csv：スクリプトの入力となる、クレンジ�
 osaka_metropolis.csv：上記ファイルの日本語バージョン（使用しない）
 
 大阪都構想分析.xlsx：osaka_metropolis_english.csvのクレンジングに使用したExcelファイル
+
+# 動作環境
+VSCode推奨（セル単位でJupyterを実行できます）
