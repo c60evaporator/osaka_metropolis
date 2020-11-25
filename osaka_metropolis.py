@@ -41,8 +41,14 @@ early_stopping_rounds=50#評価指標がこの回数連続で改善しなくな�
 seed = 42#乱数シード
 
 #%%2. グリッドサーチによるパラメータ最適化
+#パラメータ最適化クラス
 xgb_tuning = XGBTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
-param = xgb_tuning.grid_search_tuning()
+#グリッドサーチ実行
+cv = xgb_tuning.grid_search_tuning()
+
+params = cv.best_params_#最適化したパラメータを保持
+tuning_params = xgb_tuning.get_cv_params()#グリッドサーチに使用したパラメータ
+feature_importances = cv.best_estimator_.feature_importances_#特徴量重要度
 
 #%%3. 性能評価(Leave-One-Out)
 #結果保持用のDataFrame
@@ -93,9 +99,9 @@ df_result.to_csv(f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat
 path = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat_use}_{dt_now}_result.txt"
 with open(path, mode='w') as f:
         f.write('特徴量' + str(USE_EXPLANATORY))
-        f.write('\n最適パラメータ' + str(cv.best_params_))
-        f.write('\nグリッドサーチ対象' + str(cv_params))
-        f.write('\n変数重要度' + str(cv.best_estimator_.feature_importances_))
+        f.write('\n最適パラメータ' + str(params))
+        f.write('\nグリッドサーチ対象' + str(tuning_params))
+        f.write('\n変数重要度' + str(feature_importances))
         f.write('\nRMSE平均' + str(df_result['eval_rmse_min'].mean()))
         f.write('\n相関係数' + str(df_result[['pred_value','real_value']].corr().iloc[1,0]))
         f.write('\n予測誤差の最大値' + str(max((df_result['pred_value'] - df_result['real_value']).abs())))

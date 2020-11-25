@@ -27,9 +27,12 @@ class XGBTuning():
         self.y = y
         self.X_colnames = X_colnames
         self.y_colname = y_colname
+        self.cv_params = None
 
     #グリッドサーチ＋クロスバリデーション
     def grid_search_tuning(self, cv_params=CV_PARAMS, cv_num=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+        #パラメータを保持
+        self.cv_params=cv_params
         #XGBoostのインスタンス作成
         cv_model = xgb.XGBRegressor()
         # グリッドサーチのインスタンス作成
@@ -53,5 +56,8 @@ class XGBTuning():
         importances = list(reversed(cv.best_estimator_.feature_importances_.tolist()))
         plt.barh(features,importances)
 
-        #グリッドサーチで探索した最適パラメータを返す
-        return cv.best_params_
+        #グリッドサーチでの探索結果を返す
+        return cv
+
+    def get_cv_params(self):
+        return self.cv_params
