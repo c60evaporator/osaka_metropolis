@@ -30,6 +30,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
+from xgb_param_tuning import XGBTuning
 
 #目的変数と説明変数を取得（pandasではなくndarrayに変換）
 y = df[[OBJECTIVE_VARIALBLE]].values
@@ -40,48 +41,10 @@ early_stopping_rounds=50#評価指標がこの回数連続で改善しなくな�
 seed = 42#乱数シード
 
 #%%2. グリッドサーチによるパラメータ最適化
-
-#グリッドサーチ用パラメータ(https://qiita.com/R1ck29/items/50ba7fa5afa49e334a8f)
-cv_params = {'eval_metric':['rmse'],#データの評価指標
-             'objective':['reg:squarederror'],#最小化させるべき損失関数
-             'random_state':[seed],#乱数シード
-             'booster': ['gbtree'],
-             'learning_rate':[0.1,0.3,0.5],
-             'min_child_weight':[1,5,15],
-             'max_depth':[3,5,7],
-             'colsample_bytree':[0.5,0.8,1.0],
-             'subsample':[0.5,0.8,1.0]
-            }
-
-#XGBoostのインスタンス作成
-cv_model = xgb.XGBRegressor()
-#グリッドサーチのインスタンス作成
-# n_jobs=-1にするとCPU100%で全コア並列計算。とても速い。
-cv = GridSearchCV(cv_model, cv_params, cv = 5, scoring= 'r2', n_jobs =-1)
-
-#学習とテストデータに分割
-#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
-#グリッドサーチ実行
-evallist = [(X, y)]
-cv.fit(X,
-        y,
-        eval_set=evallist,
-        early_stopping_rounds=early_stopping_rounds
-        )
-
-#最適パラメータの表示
-print('最適パラメータ ' + str(cv.best_params_))
-print('変数重要度' + str(cv.best_estimator_.feature_importances_))
-
-#特徴量重要度の描画
-features = list(reversed(USE_EXPLANATORY))
-importances = list(reversed(cv.best_estimator_.feature_importances_.tolist()))
-plt.barh(features,importances)
+xgb_tuning = XGBTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
+param = xgb_tuning.grid_search_tuning()
 
 #%%3. 性能評価(Leave-One-Out)
-#パラメータにグリッドサーチでの最適パラメータを使用
-params = cv.best_params_
 #結果保持用のDataFrame
 df_result = pd.DataFrame(columns=['test_index','eval_rmse_min','train_rmse_min','num_train'])
 
