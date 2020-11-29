@@ -3,6 +3,9 @@ import pandas as pd
 from custom_pair_plot import CustomPairPlot
 import seaborn as sns
 
+#パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
+PARAM_TUNING_METHOD = 'Random'
+
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
 OBJECTIVE_VARIALBLE = 'approval_rate'#目的変数
@@ -19,7 +22,7 @@ gp = CustomPairPlot()
 use_cols = [OBJECTIVE_VARIALBLE] + USE_EXPLANATORY
 #gp.pairanalyzer(df[use_cols])
 
-# %%2＆3. XGBoost用設定読込
+# %% XGBoost＆パラメータ最適化用設定読込
 import xgboost as xgb
 from sklearn import metrics as met
 import sklearn as skl
@@ -30,7 +33,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from datetime import datetime
-from xgb_param_tuning import XGBTuning
+from xgb_param_tuning import XGBRegressorTuning
 
 #目的変数と説明変数を取得（pandasではなくndarrayに変換）
 y = df[[OBJECTIVE_VARIALBLE]].values
@@ -38,16 +41,33 @@ X = df[USE_EXPLANATORY].values
 #グリッドサーチと性能評価の共通パラメータ
 num_round=10000#最大学習回数
 early_stopping_rounds=50#評価指標がこの回数連続で改善しなくなった時点で学習をストップ
-seed = 42#乱数シード
+seed = 43#乱数シード
 
-#%%2. グリッドサーチによるパラメータ最適化
-#パラメータ最適化クラス
-xgb_tuning = XGBTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
-#グリッドサーチ実行
-cv = xgb_tuning.grid_search_tuning()
+#グリッドサーチによるパラメータ最適化メソッド
+def grid_search(X, y):
+    #パラメータ最適化クラス
+    xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
+    #グリッドサーチ実行
+    cv = xgb_tuning.grid_search_tuning()
+    tuning_params = xgb_tuning.get_tuning_params()#グリッドサーチに使用したパラメータ
+    return cv, tuning_params
+
+#ランダムサーチによるパラメータ最適化メソッド
+def random_search(X, y):
+    #パラメータ最適化クラス
+    xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
+    #ランダムサーチ実行
+    cv = xgb_tuning.random_search_tuning()
+    tuning_params = xgb_tuning.get_tuning_params()#ランダムサーチに使用したパラメータ
+    return cv, tuning_params
+
+#%%2. パラメータ最適化
+if PARAM_TUNING_METHOD == 'Grid':
+    cv, tuning_params = grid_search(X, y)
+elif PARAM_TUNING_METHOD == 'Random':
+    cv, tuning_params = random_search(X, y)
 
 params = cv.best_params_#最適化したパラメータを保持
-tuning_params = xgb_tuning.get_cv_params()#グリッドサーチに使用したパラメータ
 feature_importances = cv.best_estimator_.feature_importances_#特徴量重要度
 
 #%%3. 性能評価(Leave-One-Out)
@@ -99,6 +119,7 @@ df_result.to_csv(f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat
 path = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat_use}_{dt_now}_result.txt"
 with open(path, mode='w') as f:
         f.write('特徴量' + str(USE_EXPLANATORY))
+        f.write('\n最適化手法' + PARAM_TUNING_METHOD)
         f.write('\n最適パラメータ' + str(params))
         f.write('\nグリッドサーチ対象' + str(tuning_params))
         f.write('\n変数重要度' + str(feature_importances))
