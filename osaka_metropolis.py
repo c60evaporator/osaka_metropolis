@@ -4,7 +4,7 @@ from custom_pair_plot import CustomPairPlot
 import seaborn as sns
 
 #パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
-PARAM_TUNING_METHOD = 'Random'
+PARAM_TUNING_METHOD = 'Grid'
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -38,39 +38,54 @@ from xgb_param_tuning import XGBRegressorTuning
 #目的変数と説明変数を取得（pandasではなくndarrayに変換）
 y = df[[OBJECTIVE_VARIALBLE]].values
 X = df[USE_EXPLANATORY].values
-#グリッドサーチと性能評価の共通パラメータ
-num_round=10000#最大学習回数
-early_stopping_rounds=50#評価指標がこの回数連続で改善しなくなった時点で学習をストップ
-seed = 43#乱数シード
 
 #グリッドサーチによるパラメータ最適化メソッド
 def grid_search(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #グリッドサーチ実行
-    cv = xgb_tuning.grid_search_tuning()
-    tuning_params = xgb_tuning.get_tuning_params()#グリッドサーチに使用したパラメータ
-    return cv, tuning_params
+    best_params = xgb_tuning.grid_search_tuning()
+    tuning_params = xgb_tuning.tuning_params #  グリッドサーチに使用したパラメータ
+    feature_importances = xgb_tuning.feature_importances #  特徴量重要度
+    tuning_time = xgb_tuning.elapsed_time #  チューニング時間
+    return best_params, tuning_params, feature_importances, tuning_time
 
 #ランダムサーチによるパラメータ最適化メソッド
 def random_search(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #ランダムサーチ実行
-    cv = xgb_tuning.random_search_tuning()
-    tuning_params = xgb_tuning.get_tuning_params()#ランダムサーチに使用したパラメータ
-    return cv, tuning_params
+    best_params = xgb_tuning.random_search_tuning()
+    tuning_params = xgb_tuning.tuning_params#ランダムサーチに使用したパラメータ
+    feature_importances = xgb_tuning.feature_importances #  特徴量重要度
+    tuning_time = xgb_tuning.elapsed_time #  チューニング時間
+    return best_params, tuning_params, feature_importances, tuning_time
+
+#ベイズ最適化によるパラメータ最適化メソッド
+def bayes_optimization(X, y):
+    #パラメータ最適化クラス
+    xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
+    #ベイズ最適化実行
+    best_params = xgb_tuning.bayes_opt_tuning()
+    tuning_params = xgb_tuning.tuning_params  # ベイズ最適化に使用したパラメータ
+    feature_importances = xgb_tuning.feature_importances #  特徴量重要度
+    tuning_time = xgb_tuning.elapsed_time #  チューニング時間
+    return best_params, tuning_params, feature_importances, tuning_time
 
 #%%2. パラメータ最適化
 if PARAM_TUNING_METHOD == 'Grid':
-    cv, tuning_params = grid_search(X, y)
+    best_params, tuning_params, feature_importances, tuning_time = grid_search(X, y)
 elif PARAM_TUNING_METHOD == 'Random':
-    cv, tuning_params = random_search(X, y)
-
-params = cv.best_params_#最適化したパラメータを保持
-feature_importances = cv.best_estimator_.feature_importances_#特徴量重要度
+    best_params, tuning_params, feature_importances, tuning_time = random_search(X, y)
+elif PARAM_TUNING_METHOD == 'Bayes':
+    best_params, tuning_params, feature_importances, tuning_time = bayes_optimization(X, y)
 
 #%%3. 性能評価(Leave-One-Out)
+#性能評価のパラメータ
+num_round=10000#最大学習回数
+early_stopping_rounds=50#評価指標がこの回数連続で改善しなくなった時点で学習をストップ
+seed = 42#乱数シード
+
 #結果保持用のDataFrame
 df_result = pd.DataFrame(columns=['test_index','eval_rmse_min','train_rmse_min','num_train'])
 
@@ -85,7 +100,7 @@ for train_index, test_index in loo.split(X):#全データに対して分割ル�
     evals_result = {}#結果保持用
 
     #学習実行
-    model = xgb.train(params,
+    model = xgb.train(best_params,
                     dtrain,#訓練データ
                     num_boost_round=num_round,
                     early_stopping_rounds=early_stopping_rounds,
@@ -114,14 +129,15 @@ print('予測誤差の最大値' + str(max((df_result['pred_value'] - df_result[
 dt_now = datetime.now().strftime('%Y%m%d%H%M%S')
 feat_use = 'feat' + '-'.join([ex.split('_')[0] for ex in USE_EXPLANATORY])
 #評価結果
-df_result.to_csv(f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat_use}_{dt_now}_result.csv")
+df_result.to_csv(f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat_use}_{dt_now}_result.csv", index=False)
 
 path = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{feat_use}_{dt_now}_result.txt"
 with open(path, mode='w') as f:
         f.write('特徴量' + str(USE_EXPLANATORY))
         f.write('\n最適化手法' + PARAM_TUNING_METHOD)
-        f.write('\n最適パラメータ' + str(params))
-        f.write('\nグリッドサーチ対象' + str(tuning_params))
+        f.write('\n最適パラメータ' + str(best_params))
+        f.write('\nチューニング範囲' + str(tuning_params))
+        f.write('\nチューニング時間' + str(tuning_time))
         f.write('\n変数重要度' + str(feature_importances))
         f.write('\nRMSE平均' + str(df_result['eval_rmse_min'].mean()))
         f.write('\n相関係数' + str(df_result[['pred_value','real_value']].corr().iloc[1,0]))
