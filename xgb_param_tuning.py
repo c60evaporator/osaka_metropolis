@@ -53,7 +53,7 @@ class XGBRegressorTuning():
     ACQ = 'ei'  # 獲得関数(https://ohke.hateblo.jp/entry/2018/08/04/230000)
     BAYES_PARAMS = {'learning_rate': (0.1, 0.8),
                     'min_child_weight': (1, 20),
-                    'max_depth': (1, 10),
+                    'max_depth': (3, 10),
                     'colsample_bytree': (0.3, 1),
                     'subsample': (0.3, 1)
                     }
