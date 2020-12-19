@@ -4,7 +4,9 @@ from custom_pair_plot import CustomPairPlot
 import seaborn as sns
 
 #パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
-PARAM_TUNING_METHOD = 'Grid'
+PARAM_TUNING_METHOD = 'Bayes'
+#乱数シード
+SEED = 44
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -44,10 +46,8 @@ def grid_search(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #グリッドサーチ実行
-    best_params = xgb_tuning.grid_search_tuning()
-    tuning_params = xgb_tuning.tuning_params #  グリッドサーチに使用したパラメータ
-    feature_importances = xgb_tuning.feature_importances #  特徴量重要度
-    tuning_time = xgb_tuning.elapsed_time #  チューニング時間
+    best_params, feature_importances, tuning_time = xgb_tuning.grid_search_tuning(seed=SEED)
+    tuning_params = xgb_tuning.tuning_params#グリッドサーチに使用したパラメータ
     return best_params, tuning_params, feature_importances, tuning_time
 
 #ランダムサーチによるパラメータ最適化メソッド
@@ -55,10 +55,8 @@ def random_search(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #ランダムサーチ実行
-    best_params = xgb_tuning.random_search_tuning()
+    best_params, feature_importances, tuning_time = xgb_tuning.random_search_tuning(seed=SEED)
     tuning_params = xgb_tuning.tuning_params#ランダムサーチに使用したパラメータ
-    feature_importances = xgb_tuning.feature_importances #  特徴量重要度
-    tuning_time = xgb_tuning.elapsed_time #  チューニング時間
     return best_params, tuning_params, feature_importances, tuning_time
 
 #ベイズ最適化によるパラメータ最適化メソッド
@@ -66,10 +64,8 @@ def bayes_optimization(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #ベイズ最適化実行
-    best_params = xgb_tuning.bayes_opt_tuning()
+    best_params, feature_importances, tuning_time = xgb_tuning.bayes_opt_tuning(seed=SEED)
     tuning_params = xgb_tuning.tuning_params  # ベイズ最適化に使用したパラメータ
-    feature_importances = xgb_tuning.feature_importances #  特徴量重要度
-    tuning_time = xgb_tuning.elapsed_time #  チューニング時間
     return best_params, tuning_params, feature_importances, tuning_time
 
 #%%2. パラメータ最適化

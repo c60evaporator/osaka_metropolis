@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pandas = "*"
+numpy = "==1.19.3"
+seaborn = "*"
+xgboost = "*"
+scikit-learn = "*"
+bayesian-optimization = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
