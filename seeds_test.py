@@ -1,18 +1,22 @@
 from xgb_param_tuning import XGBRegressorTuning
+from xgb_validation import XGBRegressorValidation
 import pandas as pd
 from datetime import datetime
 import os
 
+# 結果出力先
+OUTPUT_DIR = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop"
 # パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
-PARAM_TUNING_METHODS = ['Bayes']
+PARAM_TUNING_METHODS = ['Grid']
 # 最適化で使用する乱数シード一覧
-SEEDS = [42, 43, 44, 45]
+SEEDS = [44]
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
 OBJECTIVE_VARIALBLE = 'approval_rate'#目的変数
 EXPLANATORY_VALIABLES = ['1_over60','2_between_30to60','3_male_ratio','4_required_time','5_household_member','6_income']#説明変数
 USE_EXPLANATORY = ['2_between_30to60','3_male_ratio','5_household_member','latitude']#使用する説明変数
+
 
 
 # 現在時刻
@@ -23,11 +27,35 @@ df = pd.read_csv(f'./osaka_metropolis_english.csv')
 y = df[[OBJECTIVE_VARIALBLE]].values
 X = df[USE_EXPLANATORY].values
 
-#パラメータ最適化クラス
+# パラメータ最適化クラス
 xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
+# 検証用クラス
+xgb_validation = XGBRegressorValidation(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
 
 # 手法を変えて最適化
 for method in PARAM_TUNING_METHODS:
     # 乱数を変えて最適化をループ実行
     df_result_seeds = xgb_tuning.tuning_multiple_seeds(method, seeds=SEEDS)
-    df_result_seeds.to_csv(f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop\{method}_{dt_now}_result.csv", index=False)
+    df_result_seeds.to_csv(f"{OUTPUT_DIR}\{method}_{dt_now}_result.csv", index=False)
+
+    # パラメータ記載列（'best_'で始まる列）のみ抽出
+    extractcols = df_result_seeds.columns.str.startswith('best_')
+    df_params = df_result_seeds.iloc[:, extractcols]
+    # 列名から'best_'を削除
+    for colname in df_params.columns:
+        df_params = df_params.rename(columns={colname:colname.replace('best_', '')})
+    # int型、float型、それ以外に分けて平均値算出
+    df_int = df_params.select_dtypes(include=[int, 'int64', 'int32'])
+    df_float = df_params.select_dtypes(include=float)
+    df_str = df_params.select_dtypes(exclude=[int, 'int64', 'int32', float])
+    df_int = df_int.mean().apply(lambda x: int(x))
+    df_float = df_float.mean()
+    df_str = df_str.iloc[0, :]
+    df_params = pd.concat([df_int, df_float, df_str])
+    # dict化
+    params = df_params.to_dict()
+
+    # 最適化したモデルを検証
+    validation_score, validation_detail = xgb_validation.cross_validation(params, seed=SEEDS[0])
+    #validation_score, validation_detail = xgb_validation.leave_one_out(params)
+    validation_detail.to_csv(f"{OUTPUT_DIR}\{method}_{dt_now}_validation.csv", index=False)

@@ -1,6 +1,6 @@
 import xgboost as xgb
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, cross_val_score, KFold
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import r2_score
 from bayes_opt import BayesianOptimization
 import matplotlib.pyplot as plt
 import time
@@ -13,12 +13,12 @@ class XGBRegressorTuning():
     # 共通定数
     SEED = 42  # デフォルト乱数シード
     SEEDS = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]  # デフォルト複数乱数シード
-    BOOSTER = 'gbtree'  # ブースター('gbtree':ツリーモデル, 'dart':ツリーモデル, 'gblinesr':線形モデル)
-    OBJECTIVE = 'reg:squarederror'  # 最小化させるべき損失関数(デフォルト:'reg:squarederror')
-    EVAL_METRIC = 'rmse'  # データの評価指標。基本的にはOBJECTIVEと1対1対応(デフォルト:'rmse')
-    CV_NUM = 5  # クロスバリデーションの分割数
-    EARLY_STOPPING_ROUNDS = 50  # 評価指標がこの回数連続で改善しなくなった時点で学習をストップ
     SCORING = 'r2'  # 最適化で最大化する評価指標(デフォルト:'r2')
+    CV_NUM = 5  # 最適化時のクロスバリデーションの分割数
+    BOOSTER = 'gbtree'  # 学習時ブースター('gbtree':ツリーモデル, 'dart':ツリーモデル, 'gblinesr':線形モデル)
+    OBJECTIVE = 'reg:squarederror'  # 学習時に最小化させる損失関数(デフォルト:'reg:squarederror')
+    EVAL_METRIC = 'rmse'  # 学習時のデータ評価指標。基本的にはOBJECTIVEと1対1対応(デフォルト:'rmse')
+    EARLY_STOPPING_ROUNDS = 50  # 学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
     # TODO: SCORINGにデフォルトでRMSEが存在しないので、sklearn.metrics.make_scorerで自作の必要あり(https://qiita.com/kimisyo/items/afdf76b9b6fcade640ed)
     # (https://qiita.com/taruto1215/items/2b1f7224a9a4f43906d8)
     # 最適化対象外パラメータ
@@ -59,10 +59,23 @@ class XGBRegressorTuning():
                     }
     BAYES_NOT_OPT_PARAMS = {k: v[0] for k, v in NOT_OPT_PARAMS.items()}
 
-    # 初期化（pandasではなくndarrayを入力）
     def __init__(self, X, y, X_colnames, y_colname=None):
+        """
+        初期化
+
+        Parameters
+        ----------
+        X : ndarray
+            説明変数データ(pandasではなくndarray)
+        y : ndarray
+            目的変数データ
+        X_colnames : list(str)
+            説明変数のフィールド名
+        y_colname : str
+            目的変数のフィールド名
+        """
         if X.shape[1] != len(X_colnames):
-            raise Exception('width of X must be equal to X_colnames')
+            raise Exception('width of X must be equal to length of X_colnames')
         self.X = X
         self.y = y
         self.X_colnames = X_colnames
@@ -110,7 +123,7 @@ class XGBRegressorTuning():
         plt.barh(features, importances)
 
         # グリッドサーチでの探索結果を返す
-        return cv.best_params_, feature_importances, elapsed_time
+        return cv.best_params_, cv.best_score_, feature_importances, elapsed_time
 
     # ランダムサーチ＋クロスバリデーション
     def random_search_tuning(self, cv_params=CV_PARAMS_RANDOM, cv_num=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_RANDOM):
@@ -149,7 +162,7 @@ class XGBRegressorTuning():
         plt.barh(features, importances)
 
         # ランダムサーチで探索した最適パラメータ、特徴量重要度、所要時間を返す
-        return cv.best_params_, feature_importances, elapsed_time
+        return cv.best_params_, cv.best_score_, feature_importances, elapsed_time
 
     # ベイズ最適化時の評価指標算出メソッド(bayes_optは指標を最大化するので、RMSE等のLower is betterな指標は符号を負にして返す)
     def xgb_reg_evaluate(self, learning_rate, min_child_weight, subsample, colsample_bytree, max_depth):
@@ -165,7 +178,7 @@ class XGBRegressorTuning():
         # XGBoostのモデル作成
         cv_model = xgb.XGBRegressor()
         cv_model.set_params(**params)
-        # クロスバリデーションを実施
+        # クロスバリデーションでデータ分割
         kf = KFold(n_splits=self.cv_num, shuffle=True, random_state=self.seed)
 
         # cross_val_scoreでクロスバリデーション
@@ -218,6 +231,8 @@ class XGBRegressorTuning():
         # 最適化対象以外のパラメータも追加
         best_params.update(self.BAYES_NOT_OPT_PARAMS)
         best_params['random_state'] = self.seed
+        # 評価指標の最大値を取得
+        best_score = xgb_bo.max['target']
         # 特徴量重要度算出のため学習
         model = xgb.XGBRegressor()
         model.set_params(**best_params)
@@ -228,8 +243,8 @@ class XGBRegressorTuning():
                   early_stopping_rounds=self.early_stopping_rounds
                   )
         feature_importances = model.feature_importances_
-        # ベイズ最適化で探索した最適パラメータ、特徴量重要度、所要時間を返す
-        return best_params, feature_importances, elapsed_time
+        # ベイズ最適化で探索した最適パラメータ、評価指標最大値、特徴量重要度、所要時間を返す
+        return best_params, best_score, feature_importances, elapsed_time
 
     # 乱数を変えてループ実行
     def tuning_multiple_seeds(self, method, seeds=SEEDS, params=None, cv_num=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
@@ -255,15 +270,15 @@ class XGBRegressorTuning():
                           y_colname=self.y_colname)  # いったん初期化
             # グリッドサーチ
             if method == 'Grid':
-                best_params, feature_importances, elapsed_time = self.grid_search_tuning(
+                best_params, best_score, feature_importances, elapsed_time = self.grid_search_tuning(
                     cv_params=params, cv_num=cv_num, seed=seed, early_stopping_rounds=early_stopping_rounds)
             # ランダムサーチ
             elif method == 'Random':
-                best_params, feature_importances, elapsed_time = self.random_search_tuning(
+                best_params, best_score, feature_importances, elapsed_time = self.random_search_tuning(
                     cv_params=params, cv_num=cv_num, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter)
             # ベイズ最適化
             elif method == 'Bayes':
-                best_params, feature_importances, elapsed_time = self.bayes_opt_tuning(
+                best_params, best_score, feature_importances, elapsed_time = self.bayes_opt_tuning(
                     beyes_params=params, cv_num=cv_num, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter, init_points=init_points, acq=acq, bayes_not_opt_params=bayes_not_opt_params)
 
             # 結果を辞書化
@@ -279,6 +294,8 @@ class XGBRegressorTuning():
             if method == 'Bayes':
                 result_dict['init_points'] = init_points
                 result_dict['acq'] = acq
+            # 評価指標の最大値
+            result_dict['top_score'] = best_score
             # 最適化したパラメータを追加
             result_dict.update({'best_' + k: v for k, v in best_params.items()})
             # 特徴量重要度を追加
