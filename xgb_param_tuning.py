@@ -14,7 +14,7 @@ class XGBRegressorTuning():
     # 共通定数
     SEED = 42  # デフォルト乱数シード
     SEEDS = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]  # デフォルト複数乱数シード
-    SCORING = 'r2'  # 最適化で最大化する評価指標(デフォルト:'r2')
+    SCORING = 'r2'  # 最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
     CV_NUM = 5  # 最適化時のクロスバリデーションの分割数
     BOOSTER = 'gbtree'  # 学習時ブースター('gbtree':ツリーモデル, 'dart':ツリーモデル, 'gblinesr':線形モデル)
     OBJECTIVE = 'reg:squarederror'  # 学習時に最小化させる損失関数(デフォルト:'reg:squarederror')

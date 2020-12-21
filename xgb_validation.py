@@ -10,7 +10,7 @@ class XGBRegressorValidation():
 
     # 共通定数
     SEED = 42  # デフォルト乱数シード
-    SEEDS = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]  # デフォルト複数乱数シード
+    SEEDS = [42, 43, 44, 45, 46]  # デフォルト複数乱数シード
     CV_NUM = 5  # クロスバリデーションの分割数
     EARLY_STOPPING_ROUNDS = 50  # 学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
     NUM_ROUNDS = 10000  # 学習時の最大学習回数(大きな値を指定すれば、実質的にはEARLY_STOPPING_ROUNDSに依存)
@@ -272,21 +272,26 @@ class XGBRegressorValidation():
         if isinstance(train_seeds, numbers.Integral):
             ts = train_seeds
             train_seeds = [ts for s in seeds]
+        # paramsがリストでないとき、同一のparamsでリスト化
+        if isinstance(params, list):
+            params_list = params
+        else:
+            params_list = [params for s in seeds]
 
         # 乱数ごとにループして最適化実行
         seed_score_list = []
         seed_detail_list = []
-        for cv_seed, train_seed in zip(seeds, train_seeds):
+        for cv_seed, train_seed, use_params in zip(seeds, train_seeds, params_list):
             # 通常のクロスバリデーション
             if method == 'cv':
                 validation_score, validation_detail = self.cross_validation(
-                    params, scores=scores, train_seed=train_seed, cv_seed=cv_seed, cv=cv, early_stopping_rounds=early_stopping_rounds)
+                    use_params, scores=scores, train_seed=train_seed, cv_seed=cv_seed, cv=cv, early_stopping_rounds=early_stopping_rounds)
                 validation_score.insert(0, 'cv_seed', cv_seed)
                 validation_detail.insert(0, 'cv_seed', cv_seed)
             # leave_one_out
             elif method == 'leave_one_out':
                 validation_score, validation_detail = self.leave_one_out(
-                    params, scores=scores, train_seed=train_seed, early_stopping_rounds=early_stopping_rounds)
+                    use_params, scores=scores, train_seed=train_seed, early_stopping_rounds=early_stopping_rounds)
             
             validation_score.insert(0, 'train_seed', train_seed)
             seed_score_list.append(validation_score)

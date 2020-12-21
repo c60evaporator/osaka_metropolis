@@ -6,7 +6,7 @@ import seaborn as sns
 #パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
 PARAM_TUNING_METHOD = 'Grid'
 #乱数シード
-SEED = 42
+SEED = 47
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -80,7 +80,7 @@ elif PARAM_TUNING_METHOD == 'Bayes':
 #性能評価のパラメータ
 num_round=10000#最大学習回数
 early_stopping_rounds=50#評価指標がこの回数連続で改善しなくなった時点で学習をストップ
-seed = 42#乱数シード
+seed = SEED#学習用乱数シード
 
 #結果保持用のDataFrame
 df_result = pd.DataFrame(columns=['test_index','eval_rmse_min','train_rmse_min','num_train'])
