@@ -189,7 +189,7 @@ class XGBRegressorValidation():
         validation_detail = validation_detail.sort_values(
             'data_index').reset_index(drop=True)
 
-        return validation_score, validation_detail
+        return pd.DataFrame([validation_score]), validation_detail
 
     # def cross_validation_group(self, )
 
@@ -242,7 +242,7 @@ class XGBRegressorValidation():
 
         return validation_score, validation_detail
 
-    def tuning_multiple_seeds(self, params, seeds=SEEDS, method=None, scores=SCORES, cv=None, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def tuning_multiple_seeds(self, params, seeds=SEEDS, method=None, scores=SCORES, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         """
         乱数シードを変えて交差検証をループ実行
 
@@ -263,13 +263,24 @@ class XGBRegressorValidation():
         """
 
         # 乱数ごとにループして最適化実行
-        result_list = []
+        seed_score_list = []
+        seed_detail_list = []
         for seed in seeds:
             # 通常のクロスバリデーション
             if method == 'cv':
-                validation_score, validation_detail = xgb_validation.cross_validation(
+                validation_score, validation_detail = self.cross_validation(
                     params, scores=scores, seed=seed, cv=cv, early_stopping_rounds=early_stopping_rounds)
             # leave_one_out
             elif method == 'leave_one_out':
-                validation_score, validation_detail = xgb_validation.leave_one_out(
+                validation_score, validation_detail = self.leave_one_out(
                     params, scores=scores, seed=seed, early_stopping_rounds=early_stopping_rounds)
+            
+            validation_score.insert(0, 'seed', seed)
+            seed_score_list.append(validation_score)
+            validation_detail.insert(0, 'seed', seed)
+            seed_detail_list.append(validation_detail)
+
+        seed_validation_score = pd.concat(seed_score_list, ignore_index=True)
+        seed_validation_detail = pd.concat(seed_detail_list, ignore_index=True)
+
+        return seed_validation_score, seed_validation_detail

@@ -10,7 +10,7 @@ import numpy as np
 # 結果出力先
 OUTPUT_DIR = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop"
 # パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
-PARAM_TUNING_METHODS = ['Grid']
+PARAM_TUNING_METHODS = ['Bayes']
 # 最適化で使用する乱数シード一覧
 SEEDS = [42]
 
@@ -59,6 +59,8 @@ for method in PARAM_TUNING_METHODS:
     params = df_params.to_dict()
 
     # 最適化したモデルを検証
-    validation_score, validation_detail = xgb_validation.cross_validation(params, seed=SEEDS[0])
+    #validation_score, validation_detail = xgb_validation.cross_validation(params, seed=SEEDS[0])
     #validation_score, validation_detail = xgb_validation.leave_one_out(params, seed=SEEDS[0])
-    validation_detail.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_validation_{dt_now}.csv", index=False)
+    validation_score, validation_detail = xgb_validation.tuning_multiple_seeds(params, seeds=SEEDS, method='leave_one_out')
+    validation_score.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_valid_score_{dt_now}.csv", index=False)
+    validation_detail.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_valid_detail_{dt_now}.csv", index=False)
