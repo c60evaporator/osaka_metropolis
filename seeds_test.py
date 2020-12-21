@@ -10,9 +10,9 @@ import numpy as np
 # 結果出力先
 OUTPUT_DIR = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop"
 # パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
-PARAM_TUNING_METHODS = ['Bayes']
+PARAM_TUNING_METHODS = ['Grid']
 # 最適化で使用する乱数シード一覧
-SEEDS = [42]
+SEEDS = [42, 43]
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -38,7 +38,7 @@ xgb_validation = XGBRegressorValidation(X, y, USE_EXPLANATORY, y_colname=OBJECTI
 # 手法を変えて最適化
 for method in PARAM_TUNING_METHODS:
     # 乱数を変えて最適化をループ実行
-    df_result_seeds = xgb_tuning.tuning_multiple_seeds(method, seeds=SEEDS)
+    df_result_seeds = xgb_tuning.multiple_seeds_tuning(method, seeds=SEEDS)
     df_result_seeds.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_tuning_{dt_now}.csv", index=False)
 
     # パラメータ記載列（'best_'で始まる列）のみ抽出
@@ -61,6 +61,6 @@ for method in PARAM_TUNING_METHODS:
     # 最適化したモデルを検証
     #validation_score, validation_detail = xgb_validation.cross_validation(params, seed=SEEDS[0])
     #validation_score, validation_detail = xgb_validation.leave_one_out(params, seed=SEEDS[0])
-    validation_score, validation_detail = xgb_validation.tuning_multiple_seeds(params, seeds=SEEDS, method='leave_one_out')
+    validation_score, validation_detail = xgb_validation.multiple_seeds_validation(params, seeds=SEEDS, method='cv')
     validation_score.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_valid_score_{dt_now}.csv", index=False)
     validation_detail.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_valid_detail_{dt_now}.csv", index=False)

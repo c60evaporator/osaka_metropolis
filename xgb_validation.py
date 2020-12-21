@@ -131,7 +131,7 @@ class XGBRegressorValidation():
                     [abs(p - r) for r, p in zip(real, pred)])
         return score_dict
 
-    def cross_validation(self, params, scores=SCORES, seed=SEED, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def cross_validation(self, params, scores=SCORES, train_seed=SEED, cv_seed=SEED, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         """
         クロスバリデーション実行
 
@@ -141,18 +141,20 @@ class XGBRegressorValidation():
             XGBoost使用パラメータ
         scores : dict
             使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
-        seed : int
-            乱数シード(クロスバリデーション分割、xgboost学習両方に使うので注意)
+        train_seed : int
+            乱数シード(xgboost学習用)
+        cv_seed : int
+            乱数シード(クロスバリデーション分割用)
         cv : int or KFold
             クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
         early_stopping_rounds : int
             学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
         """
         # xgboost用パラメータの乱数シード書き換え
-        params['random_state'] = seed
+        params['random_state'] = train_seed
         # 分割法未指定時、cv_numとseedに基づきランダムに分割
         if isinstance(cv, numbers.Integral):
-            cv = KFold(n_splits=cv, shuffle=True, random_state=seed)
+            cv = KFold(n_splits=cv, shuffle=True, random_state=cv_seed)
 
         # データの分割
         score_list = []
@@ -193,7 +195,7 @@ class XGBRegressorValidation():
 
     # def cross_validation_group(self, )
 
-    def leave_one_out(self, params, scores=SCORES, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def leave_one_out(self, params, scores=SCORES, train_seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         """
         Leave_One_Outクロスバリデーション実行
 
@@ -203,13 +205,13 @@ class XGBRegressorValidation():
             XGBoost使用パラメータ
         scores : dict
             使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
-        seed : int
+        train_seed : int
             乱数シード(xgboost学習用)
         early_stopping_rounds : int
             学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
         """
         # xgboost用パラメータの乱数シード書き換え
-        params['random_state'] = seed
+        params['random_state'] = train_seed
 
         # データの分割
         loo = LeaveOneOut()
@@ -242,18 +244,20 @@ class XGBRegressorValidation():
 
         return validation_score, validation_detail
 
-    def tuning_multiple_seeds(self, params, seeds=SEEDS, method=None, scores=SCORES, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def multiple_seeds_validation(self, params, seeds=SEEDS, train_seeds=None, method=None, scores=SCORES, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         """
         乱数シードを変えて交差検証をループ実行
 
         Parameters
         ----------
-        params : dict
-            XGBoost使用パラメータ
+        params : dict, list(dict)
+            XGBoost使用パラメータ(list指定すれば、ループ毎にパラメータ変更可能)
         method : str
             交差検証の方法('cv' or 'leave_one_out')
-        seeds : int
-            乱数シード(xgboost学習用。method='CV'かつcv=NoneのときkFold分割にも使用)
+        seeds : list(int)
+            乱数シード(交差検証用(method='cv'のときのみ))
+        train_seeds : list(int), int
+            乱数シード(xgboost学習用、Noneならcv_seedsの値を使用、intなら全て同一値を使用)
         scores : dict
             使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
         cv : int or KFold
@@ -261,23 +265,32 @@ class XGBRegressorValidation():
         early_stopping_rounds : int
             学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
         """
+        # train_seeds=Noneのときseedsの値を入力
+        if train_seeds is None:
+            train_seeds = [s for s in seeds]
+        # train_seedsがリストでないint型のとき、同一値で埋める
+        if isinstance(train_seeds, numbers.Integral):
+            ts = train_seeds
+            train_seeds = [ts for s in seeds]
 
         # 乱数ごとにループして最適化実行
         seed_score_list = []
         seed_detail_list = []
-        for seed in seeds:
+        for cv_seed, train_seed in zip(seeds, train_seeds):
             # 通常のクロスバリデーション
             if method == 'cv':
                 validation_score, validation_detail = self.cross_validation(
-                    params, scores=scores, seed=seed, cv=cv, early_stopping_rounds=early_stopping_rounds)
+                    params, scores=scores, train_seed=train_seed, cv_seed=cv_seed, cv=cv, early_stopping_rounds=early_stopping_rounds)
+                validation_score.insert(0, 'cv_seed', cv_seed)
+                validation_detail.insert(0, 'cv_seed', cv_seed)
             # leave_one_out
             elif method == 'leave_one_out':
                 validation_score, validation_detail = self.leave_one_out(
-                    params, scores=scores, seed=seed, early_stopping_rounds=early_stopping_rounds)
+                    params, scores=scores, train_seed=train_seed, early_stopping_rounds=early_stopping_rounds)
             
-            validation_score.insert(0, 'seed', seed)
+            validation_score.insert(0, 'train_seed', train_seed)
             seed_score_list.append(validation_score)
-            validation_detail.insert(0, 'seed', seed)
+            validation_detail.insert(0, 'train_seed', cv_seed)
             seed_detail_list.append(validation_detail)
 
         seed_validation_score = pd.concat(seed_score_list, ignore_index=True)

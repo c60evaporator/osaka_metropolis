@@ -255,7 +255,7 @@ class XGBRegressorTuning():
         return best_params, best_score, feature_importances, elapsed_time
 
     # 乱数を変えてループ実行
-    def tuning_multiple_seeds(self, method, seeds=SEEDS, params=None, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+    def multiple_seeds_tuning(self, method, seeds=SEEDS, params=None, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
         # パラメータを指定していない時、デフォルト値を読み込む
         if params == None:
             if method == 'Grid':
