@@ -88,12 +88,13 @@ class XGBRegressorTuning():
         self.early_stopping_rounds = None
 
     # グリッドサーチ＋クロスバリデーション
-    def grid_search_tuning(self, cv_params=CV_PARAMS_GRID, cv=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def grid_search_tuning(self, cv_params=CV_PARAMS_GRID, cv=CV_NUM, seed=SEED, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         # 引数を反映
         cv_params['random_state'] = [seed]
         self.tuning_params = cv_params
         self.seed = seed
         self.cv = cv
+        self.scoring = scoring
         self.early_stopping_rounds = early_stopping_rounds
         start = time.time()
         # 分割法未指定時、cv_numとseedに基づきランダムに分割
@@ -104,7 +105,7 @@ class XGBRegressorTuning():
         # グリッドサーチのインスタンス作成
         # n_jobs=-1にするとCPU100%で全コア並列計算。とても速い。
         gridcv = GridSearchCV(cv_model, cv_params, cv=cv,
-                          scoring=self.SCORING, n_jobs=-1)
+                          scoring=scoring, n_jobs=-1)
 
         # グリッドサーチ実行
         evallist = [(self.X, self.y)]
@@ -130,12 +131,13 @@ class XGBRegressorTuning():
         return gridcv.best_params_, gridcv.best_score_, feature_importances, elapsed_time
 
     # ランダムサーチ＋クロスバリデーション
-    def random_search_tuning(self, cv_params=CV_PARAMS_RANDOM, cv=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_RANDOM):
+    def random_search_tuning(self, cv_params=CV_PARAMS_RANDOM, cv=CV_NUM, seed=SEED, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_RANDOM):
         # 引数を反映
         cv_params['random_state'] = [seed]
         self.tuning_params = cv_params
         self.seed = seed
         self.cv = cv
+        self.scoring = scoring
         self.early_stopping_rounds = early_stopping_rounds
         start = time.time()  # 処理時間測定
         # 分割法未指定時、cv_numとseedに基づきランダムに分割
@@ -146,7 +148,7 @@ class XGBRegressorTuning():
         # ランダムサーチのインスタンス作成
         # n_jobs=-1にするとCPU100%で全コア並列計算。とても速い。
         randcv = RandomizedSearchCV(cv_model, cv_params, cv=cv,
-                                random_state=seed, n_iter=n_iter, scoring=self.SCORING, n_jobs=-1)
+                                random_state=seed, n_iter=n_iter, scoring=scoring, n_jobs=-1)
 
         # グリッドサーチ実行
         evallist = [(self.X, self.y)]
@@ -190,7 +192,7 @@ class XGBRegressorTuning():
         fit_params = {'early_stopping_rounds': self.early_stopping_rounds, "eval_set": [
             (self.X, self.y)], 'verbose': 0}
         scores = cross_val_score(cv_model, self.X, self.y, cv=self.cv,
-                                 scoring=self.SCORING, fit_params=fit_params, n_jobs=-1)
+                                 scoring=self.scoring, fit_params=fit_params, n_jobs=-1)
         val = scores.mean()
 
         # スクラッチでクロスバリデーション
@@ -214,12 +216,13 @@ class XGBRegressorTuning():
         return val
 
     # ベイズ最適化(bayes_opt)
-    def bayes_opt_tuning(self, beyes_params=BAYES_PARAMS, cv=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_BAYES, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+    def bayes_opt_tuning(self, beyes_params=BAYES_PARAMS, cv=CV_NUM, seed=SEED, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_BAYES, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
         # 引数を反映
         self.tuning_params = beyes_params
         self.bayes_not_opt_params = bayes_not_opt_params
         self.seed = seed
         self.cv = cv
+        self.scoring = scoring
         self.early_stopping_rounds = early_stopping_rounds
         # 分割法未指定時、cv_numとseedに基づきランダムに分割
         if isinstance(self.cv, numbers.Integral):
@@ -255,7 +258,7 @@ class XGBRegressorTuning():
         return best_params, best_score, feature_importances, elapsed_time
 
     # 乱数を変えてループ実行
-    def multiple_seeds_tuning(self, method, seeds=SEEDS, params=None, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+    def multiple_seeds_tuning(self, method, seeds=SEEDS, params=None, cv=CV_NUM, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
         # パラメータを指定していない時、デフォルト値を読み込む
         if params == None:
             if method == 'Grid':
@@ -285,21 +288,22 @@ class XGBRegressorTuning():
             # グリッドサーチ
             if method == 'Grid':
                 best_params, best_score, feature_importances, elapsed_time = self.grid_search_tuning(
-                    cv_params=params, cv=cv, seed=seed, early_stopping_rounds=early_stopping_rounds)
+                    cv_params=params, cv=cv, scoring=scoring, seed=seed, early_stopping_rounds=early_stopping_rounds)
             # ランダムサーチ
             elif method == 'Random':
                 best_params, best_score, feature_importances, elapsed_time = self.random_search_tuning(
-                    cv_params=params, cv=cv, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter)
+                    cv_params=params, cv=cv, scoring=scoring, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter)
             # ベイズ最適化
             elif method == 'Bayes':
                 best_params, best_score, feature_importances, elapsed_time = self.bayes_opt_tuning(
-                    beyes_params=params, cv=cv, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter, init_points=init_points, acq=acq, bayes_not_opt_params=bayes_not_opt_params)
+                    beyes_params=params, cv=cv, scoring=scoring, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter, init_points=init_points, acq=acq, bayes_not_opt_params=bayes_not_opt_params)
 
             # 結果を辞書化
             result_dict = { 'seed' : seed,
                         'method' : method,
                         'elapsed_time' : elapsed_time,
                         'cv_num' : str(cv),
+                        'scoring' : scoring,
                         'early_stopping_rounds' : early_stopping_rounds}
             # ランダムサーチ、ベイズ最適化のとき、繰り返し数を辞書に追加
             if method == 'Random' or method == 'Bayes':

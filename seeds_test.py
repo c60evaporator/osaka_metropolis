@@ -12,7 +12,7 @@ OUTPUT_DIR = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop"
 # パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
 PARAM_TUNING_METHODS = ['Grid']
 # 最適化で使用する乱数シード一覧
-SEEDS = [47]
+SEEDS = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -57,7 +57,7 @@ def convert_params_list(df_params):
 # 手法を変えて最適化
 for method in PARAM_TUNING_METHODS:
     # 乱数を変えて最適化をループ実行
-    df_result_seeds = xgb_tuning.multiple_seeds_tuning(method, seeds=SEEDS)
+    df_result_seeds = xgb_tuning.multiple_seeds_tuning(method, seeds=SEEDS, scoring='neg_mean_squared_error')
     df_result_seeds.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_tuning_{dt_now}.csv", index=False)
 
     # パラメータ記載列（'best_'で始まる列）のみ抽出
