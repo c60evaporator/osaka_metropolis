@@ -1,6 +1,7 @@
 import xgboost as xgb
 from sklearn.model_selection import LeaveOneOut, cross_val_score, train_test_split, KFold
 from sklearn.metrics import r2_score, mean_squared_error, mean_squared_log_error
+import numbers
 import pandas as pd
 import numpy as np
 
@@ -63,11 +64,23 @@ class XGBRegressorValidation():
         early_stopping_rounds : int
             学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
         """
+
+        # XGBRegressorで学習
+        # model = xgb.XGBRegressor()
+        # model.set_params(**params)
+        # evallist = [(X_train, y_train)]
+        # model.fit(X_train,
+        #           y_train,
+        #           eval_set=evallist,
+        #           early_stopping_rounds=early_stopping_rounds
+        #           )
+        # pred = model.predict(X_test)
+
+        # DMatrixで学習
         dtrain = xgb.DMatrix(X_train, label=y_train)  # 学習用データ
         dtest = xgb.DMatrix(X_test, label=y_test)  # テストデータ
         evals = [(dtest, 'eval'), (dtrain, 'train')]  # 結果表示用の学習データとテストデータを指定
         evals_result = {}  # 結果保持用
-
         # 学習実行
         model = xgb.train(params,
                           dtrain,  # 訓練データ
@@ -76,6 +89,7 @@ class XGBRegressorValidation():
                           evals=evals,
                           evals_result=evals_result
                           )
+
         # テストデータを推論
         pred = model.predict(dtest, ntree_limit=model.best_ntree_limit)
         detail_dict = {
@@ -86,7 +100,7 @@ class XGBRegressorValidation():
         }
         for i, colname in enumerate(self.X_colnames):
             detail_dict['X_' + colname] = X_test[:, i].tolist()
-        
+
         return detail_dict
 
     def _calc_scores(self, real, pred, scores):
@@ -117,7 +131,7 @@ class XGBRegressorValidation():
                     [abs(p - r) for r, p in zip(real, pred)])
         return score_dict
 
-    def cross_validation(self, params, scores=SCORES, cv=None, cv_num=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def cross_validation(self, params, scores=SCORES, seed=SEED, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         """
         クロスバリデーション実行
 
@@ -127,18 +141,18 @@ class XGBRegressorValidation():
             XGBoost使用パラメータ
         scores : dict
             使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
-        cv : KFold
-            クロスバリデーション分割法(未指定時はcv_numに基づきkFoldで分割)
-        cv_num : int
-            分割法未指定時の、kFold分割数
         seed : int
-            分割法未指定時の、kFold乱数シード
+            乱数シード(クロスバリデーション分割、xgboost学習両方に使うので注意)
+        cv : int or KFold
+            クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
         early_stopping_rounds : int
             学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
         """
+        # xgboost用パラメータの乱数シード書き換え
+        params['random_state'] = seed
         # 分割法未指定時、cv_numとseedに基づきランダムに分割
-        if cv is None:
-            cv = KFold(n_splits=cv_num, shuffle=True, random_state=seed)
+        if isinstance(cv, numbers.Integral):
+            cv = KFold(n_splits=cv, shuffle=True, random_state=seed)
 
         # データの分割
         score_list = []
@@ -152,7 +166,8 @@ class XGBRegressorValidation():
             detail_dict = self._train_and_predict(
                 X_train, X_test, y_train, y_test, test_index, params, early_stopping_rounds=early_stopping_rounds)
             # 評価指標算出
-            score_dict = self._calc_scores(detail_dict['real_value'], detail_dict['pred_value'], scores)
+            score_dict = self._calc_scores(
+                detail_dict['real_value'], detail_dict['pred_value'], scores)
             # 結果をDataFrameに格納
             df_score = pd.DataFrame([score_dict])  # 指標
             df_score.insert(0, 'cv_cnt', cv_cnt)
@@ -171,13 +186,14 @@ class XGBRegressorValidation():
         # 詳細結果に指標を結合
         validation_detail = pd.merge(
             detail_all, score_all, on='cv_cnt', how='left')
-        validation_detail = validation_detail.sort_values('data_index').reset_index()
+        validation_detail = validation_detail.sort_values(
+            'data_index').reset_index(drop=True)
 
         return validation_score, validation_detail
 
     # def cross_validation_group(self, )
 
-    def leave_one_out(self, params, scores=SCORES, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def leave_one_out(self, params, scores=SCORES, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         """
         Leave_One_Outクロスバリデーション実行
 
@@ -187,14 +203,19 @@ class XGBRegressorValidation():
             XGBoost使用パラメータ
         scores : dict
             使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
+        seed : int
+            乱数シード(xgboost学習用)
         early_stopping_rounds : int
             学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
         """
-        loo = LeaveOneOut()
+        # xgboost用パラメータの乱数シード書き換え
+        params['random_state'] = seed
+
         # データの分割
+        loo = LeaveOneOut()
         detail_list = []
         cv_cnt = 0  # 交差検証の何回目かをカウント
-        for train_index, test_index in loo.split(X):
+        for train_index, test_index in loo.split(self.X):
             # 学習データとテストデータに分割
             X_train, X_test = self.X[train_index], self.X[test_index]
             y_train, y_test = self.y[train_index], self.y[test_index]
@@ -207,16 +228,48 @@ class XGBRegressorValidation():
             detail_list.append(df_detail)
             cv_cnt += 1
         # 全ての推論結果を結合
-        detail_all = pd.concat(detail_list, ignore_index=True)
+        validation_detail = pd.concat(detail_list, ignore_index=True)
         # 評価指標算出(分割ごとに算出するcross_validationメソッドと異なり、全ての推論値と正解値から一括算出する)
-        score_dict = self._calc_scores(detail_all['real_value'].values.tolist(), detail_all['pred_value'].values.tolist(), scores)
+        score_dict = self._calc_scores(validation_detail['real_value'].values.tolist(
+        ), validation_detail['pred_value'].values.tolist(), scores)
         validation_score = pd.DataFrame([score_dict])
-        print(validation_score)
+        print(score_dict)
         # 詳細結果に指標を結合
-        validation_detail = pd.merge(
-            detail_all, score_all, on='cv_cnt', how='left')
-        validation_detail = validation_detail.sort_values('data_index').reset_index()
+        for colname in validation_score.columns:
+            validation_detail[colname] = validation_score[colname].iloc[0]
+        validation_detail = validation_detail.sort_values(
+            'data_index').reset_index(drop=True)
 
         return validation_score, validation_detail
 
-    # 乱数シードを変えてクロスバリデーション実行
+    def tuning_multiple_seeds(self, params, seeds=SEEDS, method=None, scores=SCORES, cv=None, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+        """
+        乱数シードを変えて交差検証をループ実行
+
+        Parameters
+        ----------
+        params : dict
+            XGBoost使用パラメータ
+        method : str
+            交差検証の方法('cv' or 'leave_one_out')
+        seeds : int
+            乱数シード(xgboost学習用。method='CV'かつcv=NoneのときkFold分割にも使用)
+        scores : dict
+            使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
+        cv : int or KFold
+            クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
+        early_stopping_rounds : int
+            学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
+        """
+
+        # 乱数ごとにループして最適化実行
+        result_list = []
+        for seed in seeds:
+            # 通常のクロスバリデーション
+            if method == 'cv':
+                validation_score, validation_detail = xgb_validation.cross_validation(
+                    params, scores=scores, seed=seed, cv=cv, early_stopping_rounds=early_stopping_rounds)
+            # leave_one_out
+            elif method == 'leave_one_out':
+                validation_score, validation_detail = xgb_validation.leave_one_out(
+                    params, scores=scores, seed=seed, early_stopping_rounds=early_stopping_rounds)

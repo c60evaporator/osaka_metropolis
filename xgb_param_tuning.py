@@ -2,6 +2,7 @@ import xgboost as xgb
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, cross_val_score, KFold
 from sklearn.metrics import r2_score
 from bayes_opt import BayesianOptimization
+import numbers
 import matplotlib.pyplot as plt
 import time
 import pandas as pd
@@ -83,28 +84,31 @@ class XGBRegressorTuning():
         self.tuning_params = None
         self.bayes_not_opt_params = None
         self.seed = None
-        self.cv_num = None
+        self.cv = None
         self.early_stopping_rounds = None
 
     # グリッドサーチ＋クロスバリデーション
-    def grid_search_tuning(self, cv_params=CV_PARAMS_GRID, cv_num=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+    def grid_search_tuning(self, cv_params=CV_PARAMS_GRID, cv=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
         # 引数を反映
         cv_params['random_state'] = [seed]
         self.tuning_params = cv_params
         self.seed = seed
-        self.cv_num = cv_num
+        self.cv = cv
         self.early_stopping_rounds = early_stopping_rounds
         start = time.time()
+        # 分割法未指定時、cv_numとseedに基づきランダムに分割
+        if isinstance(cv, numbers.Integral):
+            cv = KFold(n_splits=cv, shuffle=True, random_state=seed)
         # XGBoostのインスタンス作成
         cv_model = xgb.XGBRegressor()
         # グリッドサーチのインスタンス作成
         # n_jobs=-1にするとCPU100%で全コア並列計算。とても速い。
-        cv = GridSearchCV(cv_model, cv_params, cv=cv_num,
+        gridcv = GridSearchCV(cv_model, cv_params, cv=cv,
                           scoring=self.SCORING, n_jobs=-1)
 
         # グリッドサーチ実行
         evallist = [(self.X, self.y)]
-        cv.fit(self.X,
+        gridcv.fit(self.X,
                self.y,
                eval_set=evallist,
                early_stopping_rounds=early_stopping_rounds
@@ -112,38 +116,41 @@ class XGBRegressorTuning():
         elapsed_time = time.time() - start
 
         # 最適パラメータの表示
-        print('最適パラメータ ' + str(cv.best_params_))
-        print('変数重要度' + str(cv.best_estimator_.feature_importances_))
+        print('最適パラメータ ' + str(gridcv.best_params_))
+        print('変数重要度' + str(gridcv.best_estimator_.feature_importances_))
 
         # 特徴量重要度の取得と描画
-        feature_importances = cv.best_estimator_.feature_importances_
+        feature_importances = gridcv.best_estimator_.feature_importances_
         features = list(reversed(self.X_colnames))
         importances = list(
-            reversed(cv.best_estimator_.feature_importances_.tolist()))
+            reversed(gridcv.best_estimator_.feature_importances_.tolist()))
         plt.barh(features, importances)
 
         # グリッドサーチでの探索結果を返す
-        return cv.best_params_, cv.best_score_, feature_importances, elapsed_time
+        return gridcv.best_params_, gridcv.best_score_, feature_importances, elapsed_time
 
     # ランダムサーチ＋クロスバリデーション
-    def random_search_tuning(self, cv_params=CV_PARAMS_RANDOM, cv_num=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_RANDOM):
+    def random_search_tuning(self, cv_params=CV_PARAMS_RANDOM, cv=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_RANDOM):
         # 引数を反映
         cv_params['random_state'] = [seed]
         self.tuning_params = cv_params
         self.seed = seed
-        self.cv_num = cv_num
+        self.cv = cv
         self.early_stopping_rounds = early_stopping_rounds
         start = time.time()  # 処理時間測定
+        # 分割法未指定時、cv_numとseedに基づきランダムに分割
+        if isinstance(cv, numbers.Integral):
+            cv = KFold(n_splits=cv, shuffle=True, random_state=seed)
         # XGBoostのインスタンス作成
         cv_model = xgb.XGBRegressor()
         # ランダムサーチのインスタンス作成
         # n_jobs=-1にするとCPU100%で全コア並列計算。とても速い。
-        cv = RandomizedSearchCV(cv_model, cv_params, cv=cv_num,
+        randcv = RandomizedSearchCV(cv_model, cv_params, cv=cv,
                                 random_state=seed, n_iter=n_iter, scoring=self.SCORING, n_jobs=-1)
 
         # グリッドサーチ実行
         evallist = [(self.X, self.y)]
-        cv.fit(self.X,
+        randcv.fit(self.X,
                self.y,
                eval_set=evallist,
                early_stopping_rounds=early_stopping_rounds
@@ -151,18 +158,18 @@ class XGBRegressorTuning():
         elapsed_time = time.time() - start
 
         # 最適パラメータの表示
-        print('最適パラメータ ' + str(cv.best_params_))
-        print('変数重要度' + str(cv.best_estimator_.feature_importances_))
+        print('最適パラメータ ' + str(randcv.best_params_))
+        print('変数重要度' + str(randcv.best_estimator_.feature_importances_))
 
         # 特徴量重要度の取得と描画
-        feature_importances = cv.best_estimator_.feature_importances_
+        feature_importances = randcv.best_estimator_.feature_importances_
         features = list(reversed(self.X_colnames))
         importances = list(
-            reversed(cv.best_estimator_.feature_importances_.tolist()))
+            reversed(randcv.best_estimator_.feature_importances_.tolist()))
         plt.barh(features, importances)
 
         # ランダムサーチで探索した最適パラメータ、特徴量重要度、所要時間を返す
-        return cv.best_params_, cv.best_score_, feature_importances, elapsed_time
+        return randcv.best_params_, randcv.best_score_, feature_importances, elapsed_time
 
     # ベイズ最適化時の評価指標算出メソッド(bayes_optは指標を最大化するので、RMSE等のLower is betterな指標は符号を負にして返す)
     def xgb_reg_evaluate(self, learning_rate, min_child_weight, subsample, colsample_bytree, max_depth):
@@ -178,19 +185,17 @@ class XGBRegressorTuning():
         # XGBoostのモデル作成
         cv_model = xgb.XGBRegressor()
         cv_model.set_params(**params)
-        # クロスバリデーションでデータ分割
-        kf = KFold(n_splits=self.cv_num, shuffle=True, random_state=self.seed)
 
         # cross_val_scoreでクロスバリデーション
         fit_params = {'early_stopping_rounds': self.early_stopping_rounds, "eval_set": [
             (self.X, self.y)], 'verbose': 0}
-        scores = cross_val_score(cv_model, self.X, self.y, cv=kf,
+        scores = cross_val_score(cv_model, self.X, self.y, cv=self.cv,
                                  scoring=self.SCORING, fit_params=fit_params, n_jobs=-1)
         val = scores.mean()
 
         # スクラッチでクロスバリデーション
         # scores = []
-        # for train, test in kf.split(self.X, self.y):
+        # for train, test in self.cv.split(self.X, self.y):
         #     X_train = self.X[train]
         #     y_train = self.y[train]
         #     X_test = self.X[test]
@@ -209,13 +214,16 @@ class XGBRegressorTuning():
         return val
 
     # ベイズ最適化(bayes_opt)
-    def bayes_opt_tuning(self, beyes_params=BAYES_PARAMS, cv_num=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_BAYES, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+    def bayes_opt_tuning(self, beyes_params=BAYES_PARAMS, cv=CV_NUM, seed=SEED, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_BAYES, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
         # 引数を反映
         self.tuning_params = beyes_params
         self.bayes_not_opt_params = bayes_not_opt_params
         self.seed = seed
-        self.cv_num = cv_num
+        self.cv = cv
         self.early_stopping_rounds = early_stopping_rounds
+        # 分割法未指定時、cv_numとseedに基づきランダムに分割
+        if isinstance(self.cv, numbers.Integral):
+            self.cv = KFold(n_splits=self.cv, shuffle=True, random_state=self.seed)
         # ベイズ最適化を実行
         start = time.time()
         xgb_bo = BayesianOptimization(
@@ -247,7 +255,7 @@ class XGBRegressorTuning():
         return best_params, best_score, feature_importances, elapsed_time
 
     # 乱数を変えてループ実行
-    def tuning_multiple_seeds(self, method, seeds=SEEDS, params=None, cv_num=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+    def tuning_multiple_seeds(self, method, seeds=SEEDS, params=None, cv=CV_NUM, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
         # パラメータを指定していない時、デフォルト値を読み込む
         if params == None:
             if method == 'Grid':
@@ -268,24 +276,30 @@ class XGBRegressorTuning():
         for seed in seeds:
             self.__init__(self.X, self.y, self.X_colnames,
                           y_colname=self.y_colname)  # いったん初期化
+                    
+            # TODO cvに分割法指定しているとき、seedを書き換える必要あり
+            if not isinstance(cv, numbers.Integral):
+                if cv.random_state is not None:
+                    cv.random_state = seed
+
             # グリッドサーチ
             if method == 'Grid':
                 best_params, best_score, feature_importances, elapsed_time = self.grid_search_tuning(
-                    cv_params=params, cv_num=cv_num, seed=seed, early_stopping_rounds=early_stopping_rounds)
+                    cv_params=params, cv=cv, seed=seed, early_stopping_rounds=early_stopping_rounds)
             # ランダムサーチ
             elif method == 'Random':
                 best_params, best_score, feature_importances, elapsed_time = self.random_search_tuning(
-                    cv_params=params, cv_num=cv_num, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter)
+                    cv_params=params, cv=cv, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter)
             # ベイズ最適化
             elif method == 'Bayes':
                 best_params, best_score, feature_importances, elapsed_time = self.bayes_opt_tuning(
-                    beyes_params=params, cv_num=cv_num, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter, init_points=init_points, acq=acq, bayes_not_opt_params=bayes_not_opt_params)
+                    beyes_params=params, cv=cv, seed=seed, early_stopping_rounds=early_stopping_rounds, n_iter=n_iter, init_points=init_points, acq=acq, bayes_not_opt_params=bayes_not_opt_params)
 
             # 結果を辞書化
             result_dict = { 'seed' : seed,
                         'method' : method,
                         'elapsed_time' : elapsed_time,
-                        'cv_num' : cv_num,
+                        'cv_num' : str(cv),
                         'early_stopping_rounds' : early_stopping_rounds}
             # ランダムサーチ、ベイズ最適化のとき、繰り返し数を辞書に追加
             if method == 'Random' or method == 'Bayes':

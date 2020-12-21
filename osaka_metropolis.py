@@ -4,9 +4,9 @@ from custom_pair_plot import CustomPairPlot
 import seaborn as sns
 
 #パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
-PARAM_TUNING_METHOD = 'Bayes'
+PARAM_TUNING_METHOD = 'Grid'
 #乱数シード
-SEED = 44
+SEED = 42
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -46,7 +46,7 @@ def grid_search(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #グリッドサーチ実行
-    best_params, feature_importances, tuning_time = xgb_tuning.grid_search_tuning(seed=SEED)
+    best_params, best_score, feature_importances, tuning_time = xgb_tuning.grid_search_tuning(seed=SEED)
     tuning_params = xgb_tuning.tuning_params#グリッドサーチに使用したパラメータ
     return best_params, tuning_params, feature_importances, tuning_time
 
@@ -55,7 +55,7 @@ def random_search(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #ランダムサーチ実行
-    best_params, feature_importances, tuning_time = xgb_tuning.random_search_tuning(seed=SEED)
+    best_params, best_score, feature_importances, tuning_time = xgb_tuning.random_search_tuning(seed=SEED)
     tuning_params = xgb_tuning.tuning_params#ランダムサーチに使用したパラメータ
     return best_params, tuning_params, feature_importances, tuning_time
 
@@ -64,7 +64,7 @@ def bayes_optimization(X, y):
     #パラメータ最適化クラス
     xgb_tuning = XGBRegressorTuning(X, y, USE_EXPLANATORY, y_colname=OBJECTIVE_VARIALBLE)
     #ベイズ最適化実行
-    best_params, feature_importances, tuning_time = xgb_tuning.bayes_opt_tuning(seed=SEED)
+    best_params, best_score, feature_importances, tuning_time = xgb_tuning.bayes_opt_tuning(seed=SEED)
     tuning_params = xgb_tuning.tuning_params  # ベイズ最適化に使用したパラメータ
     return best_params, tuning_params, feature_importances, tuning_time
 

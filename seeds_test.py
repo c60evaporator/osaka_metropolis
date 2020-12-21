@@ -3,13 +3,16 @@ from xgb_validation import XGBRegressorValidation
 import pandas as pd
 from datetime import datetime
 import os
+from sklearn.metrics import r2_score
+from sklearn.model_selection import KFold
+import numpy as np
 
 # 結果出力先
 OUTPUT_DIR = f"{os.getenv('HOMEDRIVE')}{os.getenv('HOMEPATH')}\Desktop"
 # パラメータ最適化の手法(Grid, Random, Bayes, Optuna)
 PARAM_TUNING_METHODS = ['Grid']
 # 最適化で使用する乱数シード一覧
-SEEDS = [44]
+SEEDS = [42]
 
 #使用するフィールド
 KEY_VALUE = 'ward_before'#キー列
@@ -36,7 +39,7 @@ xgb_validation = XGBRegressorValidation(X, y, USE_EXPLANATORY, y_colname=OBJECTI
 for method in PARAM_TUNING_METHODS:
     # 乱数を変えて最適化をループ実行
     df_result_seeds = xgb_tuning.tuning_multiple_seeds(method, seeds=SEEDS)
-    df_result_seeds.to_csv(f"{OUTPUT_DIR}\{method}_{dt_now}_result.csv", index=False)
+    df_result_seeds.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_tuning_{dt_now}.csv", index=False)
 
     # パラメータ記載列（'best_'で始まる列）のみ抽出
     extractcols = df_result_seeds.columns.str.startswith('best_')
@@ -57,5 +60,5 @@ for method in PARAM_TUNING_METHODS:
 
     # 最適化したモデルを検証
     validation_score, validation_detail = xgb_validation.cross_validation(params, seed=SEEDS[0])
-    #validation_score, validation_detail = xgb_validation.leave_one_out(params)
-    validation_detail.to_csv(f"{OUTPUT_DIR}\{method}_{dt_now}_validation.csv", index=False)
+    #validation_score, validation_detail = xgb_validation.leave_one_out(params, seed=SEEDS[0])
+    validation_detail.to_csv(f"{OUTPUT_DIR}\{method}_seed{'-'.join([str(s) for s in SEEDS])}_validation_{dt_now}.csv", index=False)
