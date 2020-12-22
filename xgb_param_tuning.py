@@ -14,7 +14,7 @@ class XGBRegressorTuning():
     # 共通定数
     SEED = 42  # デフォルト乱数シード
     SEEDS = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]  # デフォルト複数乱数シード
-    SCORING = 'r2'  # 最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
+    SCORING = 'neg_mean_squared_error'  # 最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
     CV_NUM = 5  # 最適化時のクロスバリデーションの分割数
     BOOSTER = 'gbtree'  # 学習時ブースター('gbtree':ツリーモデル, 'dart':ツリーモデル, 'gblinesr':線形モデル)
     OBJECTIVE = 'reg:squarederror'  # 学習時に最小化させる損失関数(デフォルト:'reg:squarederror')
@@ -39,9 +39,9 @@ class XGBRegressorTuning():
     CV_PARAMS_GRID.update(NOT_OPT_PARAMS)
 
     # ランダムサーチ用パラメータ
-    N_ITER_RANDOM = 150  # ランダムサーチorベイズ最適化の繰り返し回数
-    CV_PARAMS_RANDOM = {'learning_rate': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-                        'min_child_weight': [1, 3, 5, 7, 11, 15, 19, 25],
+    N_ITER_RANDOM = 200  # ランダムサーチorベイズ最適化の繰り返し回数
+    CV_PARAMS_RANDOM = {'learning_rate': [0.1, 0.2, 0.3, 0.4, 0.5],
+                        'min_child_weight': [1, 3, 5, 7, 9, 11, 13, 15],
                         'max_depth': [3, 4, 5, 6, 7],
                         'colsample_bytree': [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                         'subsample': [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
@@ -49,14 +49,14 @@ class XGBRegressorTuning():
     CV_PARAMS_RANDOM.update(NOT_OPT_PARAMS)
 
     # ベイズ最適化用パラメータ
-    N_ITER_BAYES = 75  # ベイズ最適化の繰り返し回数
-    INIT_POINTS = 15  # ランダムな探索を何回行うか
+    N_ITER_BAYES = 100  # ベイズ最適化の繰り返し回数
+    INIT_POINTS = 20  # ランダムな探索を何回行うか
     ACQ = 'ei'  # 獲得関数(https://ohke.hateblo.jp/entry/2018/08/04/230000)
-    BAYES_PARAMS = {'learning_rate': (0.1, 0.8),
-                    'min_child_weight': (1, 20),
-                    'max_depth': (3, 10),
-                    'colsample_bytree': (0.3, 1),
-                    'subsample': (0.3, 1)
+    BAYES_PARAMS = {'learning_rate': (0.1, 0.5),
+                    'min_child_weight': (1, 15),
+                    'max_depth': (3, 7),
+                    'colsample_bytree': (0.5, 1),
+                    'subsample': (0.5, 1)
                     }
     BAYES_NOT_OPT_PARAMS = {k: v[0] for k, v in NOT_OPT_PARAMS.items()}
 
@@ -324,6 +324,6 @@ class XGBRegressorTuning():
         
         #全ての乱数の結果を合体
         result_all = pd.concat(result_list, ignore_index=True)
-        return result_all
+        return result_all, params
 
     # 性能評価(leave_one_out)
