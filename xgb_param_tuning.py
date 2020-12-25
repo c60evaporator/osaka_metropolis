@@ -39,7 +39,7 @@ class XGBRegressorTuning():
     CV_PARAMS_GRID.update(NOT_OPT_PARAMS)
 
     # ランダムサーチ用パラメータ
-    N_ITER_RANDOM = 200  # ランダムサーチorベイズ最適化の繰り返し回数
+    N_ITER_RANDOM = 200  # ランダムサーチの繰り返し回数
     CV_PARAMS_RANDOM = {'learning_rate': [0.1, 0.2, 0.3, 0.4, 0.5],
                         'min_child_weight': [1, 3, 5, 7, 9, 11, 13, 15],
                         'max_depth': [3, 4, 5, 6, 7],
@@ -50,7 +50,7 @@ class XGBRegressorTuning():
 
     # ベイズ最適化用パラメータ
     N_ITER_BAYES = 100  # ベイズ最適化の繰り返し回数
-    INIT_POINTS = 20  # ランダムな探索を何回行うか
+    INIT_POINTS = 20  # 初期観測点の個数(ランダムな探索を何回行うか)
     ACQ = 'ei'  # 獲得関数(https://ohke.hateblo.jp/entry/2018/08/04/230000)
     BAYES_PARAMS = {'learning_rate': (0.1, 0.5),
                     'min_child_weight': (1, 15),
@@ -87,8 +87,23 @@ class XGBRegressorTuning():
         self.cv = None
         self.early_stopping_rounds = None
 
-    # グリッドサーチ＋クロスバリデーション
     def grid_search_tuning(self, cv_params=CV_PARAMS_GRID, cv=CV_NUM, seed=SEED, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS):
+        """
+        グリッドサーチ＋クロスバリデーション
+
+        Parameters
+        ----------
+        cv_params : dict
+            最適化対象のパラメータ一覧
+        cv : int or KFold
+            クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
+        seed : int
+            乱数シード(クロスバリデーション分割用、xgboostの乱数シードはcv_paramsで指定するので注意)
+        scoring : str
+            最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
+        early_stopping_rounds : int
+            学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
+        """
         # 引数を反映
         cv_params['random_state'] = [seed]
         self.tuning_params = cv_params
@@ -130,8 +145,25 @@ class XGBRegressorTuning():
         # グリッドサーチでの探索結果を返す
         return gridcv.best_params_, gridcv.best_score_, feature_importances, elapsed_time
 
-    # ランダムサーチ＋クロスバリデーション
     def random_search_tuning(self, cv_params=CV_PARAMS_RANDOM, cv=CV_NUM, seed=SEED, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_RANDOM):
+        """
+        ランダムサーチ＋クロスバリデーション
+
+        Parameters
+        ----------
+        cv_params : dict
+            最適化対象のパラメータ一覧
+        cv : int or KFold
+            クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
+        seed : int
+            乱数シード(クロスバリデーション分割用、xgboostの乱数シードはcv_paramsで指定するので注意)
+        scoring : str
+            最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
+        early_stopping_rounds : int
+            学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
+        n_iter : int
+            ランダムサーチの繰り返し回数
+        """
         # 引数を反映
         cv_params['random_state'] = [seed]
         self.tuning_params = cv_params
@@ -215,8 +247,31 @@ class XGBRegressorTuning():
 
         return val
 
-    # ベイズ最適化(bayes_opt)
     def bayes_opt_tuning(self, beyes_params=BAYES_PARAMS, cv=CV_NUM, seed=SEED, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=N_ITER_BAYES, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+        """
+        ベイズ最適化(bayes_opt)
+
+        Parameters
+        ----------
+        beyes_params : dict
+            最適化対象のパラメータ範囲
+        cv : int or KFold
+            クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
+        seed : int
+            乱数シード(クロスバリデーション分割用、xgboostの乱数シードはcv_paramsで指定するので注意)
+        scoring : str
+            最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
+        early_stopping_rounds : int
+            学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
+        n_iter : int
+            ベイズ最適化の繰り返し回数
+        init_points : int
+            初期観測点の個数(ランダムな探索を何回行うか)
+        acq : str
+            獲得関数('ei', 'pi', 'ucb')
+        bayes_not_opt_params : dict
+            最適化対象外のパラメータ一覧
+        """
         # 引数を反映
         self.tuning_params = beyes_params
         self.bayes_not_opt_params = bayes_not_opt_params
@@ -257,8 +312,33 @@ class XGBRegressorTuning():
         # ベイズ最適化で探索した最適パラメータ、評価指標最大値、特徴量重要度、所要時間を返す
         return best_params, best_score, feature_importances, elapsed_time
 
-    # 乱数を変えてループ実行
     def multiple_seeds_tuning(self, method, seeds=SEEDS, params=None, cv=CV_NUM, scoring=SCORING, early_stopping_rounds=EARLY_STOPPING_ROUNDS, n_iter=None, init_points=INIT_POINTS, acq=ACQ, bayes_not_opt_params=BAYES_NOT_OPT_PARAMS):
+        """
+        乱数を変えてループ実行
+
+        Parameters
+        ----------
+        method : str
+            最適化手法('Grid', 'Random', 'Bayes')
+        seeds : list(int)
+            乱数シードのリスト(クロスバリデーション分割用、xgboostの乱数シードはparams(ベイズ最適化はbayes_not_opt_params)で指定するので注意)
+        params : dict
+            最適化対象のパラメータ一覧(ベイズ最適化はパラメータ範囲)
+        cv : int or KFold
+            クロスバリデーション分割法(未指定時 or int入力時はkFoldで分割)
+        scoring : str
+            最適化で最大化する評価指標('r2', 'neg_mean_squared_error', 'neg_mean_squared_log_error')
+        early_stopping_rounds : int
+            学習時、評価指標がこの回数連続で改善しなくなった時点でストップ
+        n_iter : int
+            ランダムサーチ・ベイズ最適化の繰り返し回数(グリッドサーチでは不使用)
+        init_points : int
+            初期観測点の個数(ベイズ最適化のみ使用)
+        acq : str
+            獲得関数('ei', 'pi', 'ucb'、ベイズ最適化のみ使用)
+        bayes_not_opt_params : dict
+            最適化対象外のパラメータ一覧(ベイズ最適化のみ使用)
+        """
         # パラメータを指定していない時、デフォルト値を読み込む
         if params == None:
             if method == 'Grid':

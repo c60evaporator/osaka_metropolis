@@ -251,13 +251,13 @@ class XGBRegressorValidation():
         Parameters
         ----------
         params : dict, list(dict)
-            XGBoost使用パラメータ(list指定すれば、ループ毎にパラメータ変更可能)
-        method : str
-            交差検証の方法('cv' or 'leave_one_out')
+            XGBoost使用パラメータ((list指定すればループ毎にパラメータ変更可能、空のdict'{}'ならxgboostのデフォルト値使用))
         seeds : list(int)
             乱数シード(交差検証用(method='cv'のときのみ))
         train_seeds : list(int), int
             乱数シード(xgboost学習用、Noneならcv_seedsの値を使用、intなら全て同一値を使用)
+        method : str
+            交差検証の方法('cv' or 'leave_one_out')
         scores : dict
             使用する評価指標(例:'r2', 'rmse', 'maxerror', 'rmsle')と集計方法(例:'mean', 'max')の辞書
         cv : int or KFold
